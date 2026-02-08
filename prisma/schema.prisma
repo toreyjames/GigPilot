@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users ──────────────────────────────────────────
+model User {
+  id               String   @id @default(cuid())
+  clerkId          String?  @unique
+  email            String   @unique
+  name             String?
+  earningsGoal     Int      @default(2000) // Monthly goal in dollars
+  availableHours   Int      @default(10) // Hours per week
+  skills           String[] @default([])
+  onboardingDone   Boolean  @default(false)
+  subscriptionTier String   @default("free") // free, starter, pro
+  stripeCustomerId String?
+
+  earnings    Earning[]
+  generations Generation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Opportunities (found by bots) ──────────────────
+model Opportunity {
+  id          String   @id @default(cuid())
+  title       String
+  category    String
+  description String
+  avgEarnings String
+  timeToDeliver String
+  demandScore Int      // 0-100
+  competition String   // low, medium, high
+  trend       String   // rising, stable, falling
+  source      String   // e.g. "Fiverr + Google Trends"
+  isHot       Boolean  @default(false)
+  isActive    Boolean  @default(true)
+
+  // Raw data from the scraper
+  rawData     Json?
+  scrapedFrom String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([demandScore])
+  @@index([isHot])
+  @@index([createdAt])
+}
+
+// ─── Gig Categories ─────────────────────────────────
+model GigCategory {
+  id          String @id @default(cuid())
+  name        String @unique
+  slug        String @unique
+  icon        String
+  description String
+
+  marketData MarketData[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Market Data (time series from scrapers) ────────
+model MarketData {
+  id               String   @id @default(cuid())
+  categoryId       String
+  category         GigCategory @relation(fields: [categoryId], references: [id])
+  date             DateTime
+  avgPrice         Float
+  demandScore      Int      // 0-100
+  competitionLevel String   // low, medium, high
+  trend            String   // rising, stable, falling
+  totalListings    Int      @default(0)
+  avgReviews       Float    @default(0)
+  scrapedFrom      String   // fiverr, upwork, etsy, google_trends, reddit
+
+  createdAt DateTime @default(now())
+
+  @@index([categoryId, date])
+  @@index([scrapedFrom])
+}
+
+// ─── AI Generations ─────────────────────────────────
+model Generation {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  template   String   // email-sequence, blog-post, etc.
+  inputs     Json     // User-provided inputs
+  output     String   // Generated content
+  provider   String   // openai, anthropic
+  model      String   // gpt-4o-mini, claude-3.5-sonnet, etc.
+  tokens     Int      @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([template])
+}
+
+// ─── Earnings ───────────────────────────────────────
+model Earning {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  amount   Float
+  category String
+  client   String?
+  notes    String?
+  source   String   @default("manual") // manual, marketplace
+  date     DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([date])
+}
+
+// ─── Bot Runs (scraper execution log) ───────────────
+model BotRun {
+  id              String   @id @default(cuid())
+  botName         String   // fiverr-scout, upwork-scout, etc.
+  status          String   // running, completed, failed
+  opportunitiesFound Int   @default(0)
+  duration        Int?     // milliseconds
+  error           String?
+
+  startedAt  DateTime @default(now())
+  completedAt DateTime?
+
+  @@index([botName])
+  @@index([startedAt])
+}
