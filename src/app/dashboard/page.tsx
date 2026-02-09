@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { opportunities as staticOpportunities } from "@/lib/data";
 import type { Opportunity } from "@/lib/data";
-import { computeEarningsPerHour } from "@/lib/roi";
+import {
+  computeEarningsPerHour,
+  estimateMonthlyPotential,
+  rankOpportunitiesByGoal,
+} from "@/lib/roi";
 import { getUser } from "@/lib/user-store";
 import type { UserTrack } from "@/lib/user-store";
 import { OpportunityCard } from "@/components/dashboard/opportunity-card";
@@ -71,7 +75,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/opportunities")
+    const user = getUser();
+    const goal = user.earningsGoal || 2000;
+    const skills = (user.skills || []).join(",");
+    const hours = user.availableHours || 10;
+    fetch(`/api/opportunities?goal=${goal}&skills=${encodeURIComponent(skills)}&hours=${hours}`)
       .then((res) => res.json())
       .then((data: { opportunities?: unknown[]; fromDb?: boolean }) => {
         if (cancelled) return;
@@ -83,33 +91,46 @@ export default function DashboardPage() {
           setOpportunities(list);
         } else {
           setFromDb(false);
-          setOpportunities(
-            staticOpportunities.map((o) => ({
-              ...o,
-              earningsPerHour: computeEarningsPerHour(
+          const withEph = staticOpportunities.map((o) => ({
+            ...o,
+            earningsPerHour:
+              computeEarningsPerHour(
                 o.avgEarnings,
                 o.timeToDeliver,
                 o.competition,
                 o.demandScore
               ),
-            }))
+          }));
+          const currentGoal = getUser().earningsGoal || 2000;
+          const ranked = rankOpportunitiesByGoal(
+            withEph,
+            currentGoal,
+            estimateMonthlyPotential,
+            (o) => o.demandScore
           );
+          setOpportunities(ranked);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setFromDb(false);
-          setOpportunities(
-            staticOpportunities.map((o) => ({
-              ...o,
-              earningsPerHour: computeEarningsPerHour(
-                o.avgEarnings,
-                o.timeToDeliver,
-                o.competition,
-                o.demandScore
-              ),
-            }))
+          const withEph = staticOpportunities.map((o) => ({
+            ...o,
+            earningsPerHour: computeEarningsPerHour(
+              o.avgEarnings,
+              o.timeToDeliver,
+              o.competition,
+              o.demandScore
+            ),
+          }));
+          const currentGoal = getUser().earningsGoal || 2000;
+          const ranked = rankOpportunitiesByGoal(
+            withEph,
+            currentGoal,
+            estimateMonthlyPotential,
+            (o) => o.demandScore
           );
+          setOpportunities(ranked);
         }
       })
       .finally(() => {
@@ -118,7 +139,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [earningsGoal]);
 
   const displayOpportunities = loaded ? opportunities : staticOpportunities;
   const isLiveEmpty = fromDb && loaded && opportunities.length === 0;
@@ -155,7 +176,8 @@ export default function DashboardPage() {
       }
       setScanStatus("success");
       // Refetch opportunities so the list updates
-      const oppRes = await fetch("/api/opportunities");
+      const u = getUser();
+      const oppRes = await fetch(`/api/opportunities?goal=${u.earningsGoal || 2000}&skills=${encodeURIComponent((u.skills || []).join(","))}&hours=${u.availableHours || 10}`);
       const oppData = await oppRes.json();
       if (oppData.fromDb === true) {
         setFromDb(true);

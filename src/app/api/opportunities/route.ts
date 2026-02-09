@@ -1,6 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { getPrisma } from "@/lib/db";
+import {
+  estimateMonthlyPotential,
+  rankOpportunitiesByGoal,
+} from "@/lib/roi";
 
 function formatFoundAt(date: Date): string {
   const ms = Date.now() - new Date(date).getTime();
@@ -12,8 +16,10 @@ function formatFoundAt(date: Date): string {
   return `${days}d ago`;
 }
 
-async function getOpportunitiesFromDb(): Promise<{
-  opportunities: ReturnType<typeof mapRow>[];
+type MappedRow = ReturnType<typeof mapRow>;
+
+async function getOpportunitiesFromDb(goal: number | null): Promise<{
+  opportunities: MappedRow[];
   fromDb: boolean;
 }> {
   try {
@@ -23,10 +29,18 @@ async function getOpportunitiesFromDb(): Promise<{
     }
     const rows = await prisma.opportunity.findMany({
       where: { isActive: true },
-      orderBy: [{ demandScore: "desc" }, { createdAt: "desc" }],
+      orderBy: [{ updatedAt: "desc" }, { demandScore: "desc" }],
       take: 50,
     });
-    const opportunities = rows.map(mapRow);
+    let opportunities = rows.map(mapRow);
+    if (goal != null && goal > 0) {
+      opportunities = rankOpportunitiesByGoal(
+        opportunities,
+        goal,
+        estimateMonthlyPotential,
+        (o) => o.demandScore
+      );
+    }
     return { opportunities, fromDb: true };
   } catch {
     return { opportunities: [], fromDb: false };
@@ -75,10 +89,23 @@ function mapRow(r: {
 const CACHE_TAG = "opportunities";
 const CACHE_SECONDS = 60;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const goalParam = req.nextUrl.searchParams.get("goal");
+  const skillsParam = req.nextUrl.searchParams.get("skills") ?? "";
+  const hoursParam = req.nextUrl.searchParams.get("hours") ?? "";
+  const goal =
+    goalParam != null && goalParam !== ""
+      ? Math.max(0, Math.floor(Number(goalParam)))
+      : null;
+  const cacheKey = [
+    CACHE_TAG,
+    goal != null ? String(goal) : "none",
+    skillsParam || "none",
+    hoursParam || "none",
+  ];
   const cached = await unstable_cache(
-    getOpportunitiesFromDb,
-    [CACHE_TAG],
+    () => getOpportunitiesFromDb(goal),
+    cacheKey,
     { revalidate: CACHE_SECONDS, tags: [CACHE_TAG] }
   )();
   return NextResponse.json(cached);

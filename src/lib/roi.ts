@@ -47,3 +47,48 @@ export function computeEarningsPerHour(
   const value = revenue * winRate * demandWeight;
   return Math.round((value / hours) * 10) / 10;
 }
+
+/** 10 hrs/week × 4 weeks */
+const HOURS_PER_MONTH = 40;
+
+/**
+ * Estimate monthly earnings potential for an opportunity (used for goal-based ranking).
+ */
+export function estimateMonthlyPotential(opp: {
+  avgEarnings: string;
+  timeToDeliver: string;
+  competition: string;
+  demandScore: number;
+  earningsPerHour?: number | null;
+}): number {
+  const eph =
+    opp.earningsPerHour ??
+    computeEarningsPerHour(
+      opp.avgEarnings,
+      opp.timeToDeliver,
+      opp.competition,
+      opp.demandScore
+    );
+  return Math.round(eph * HOURS_PER_MONTH);
+}
+
+/**
+ * Rank opportunities so those whose monthly potential is closest to the user's goal appear first.
+ */
+export function rankOpportunitiesByGoal<T>(
+  items: T[],
+  goal: number,
+  getMonthlyPotential: (o: T) => number,
+  getDemandScore?: (o: T) => number
+): T[] {
+  return [...items].sort((a, b) => {
+    const pa = getMonthlyPotential(a);
+    const pb = getMonthlyPotential(b);
+    const da = Math.abs(pa - goal);
+    const db = Math.abs(pb - goal);
+    if (da !== db) return da - db;
+    const sa = getDemandScore?.(a) ?? 0;
+    const sb = getDemandScore?.(b) ?? 0;
+    return sb - sa;
+  });
+}

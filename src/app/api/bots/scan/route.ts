@@ -92,6 +92,7 @@ async function runScan() {
       opportunitiesCreated: fusion.opportunitiesCreated,
       opportunitiesUpdated: fusion.opportunitiesUpdated,
       signalsLinked: fusion.signalsLinked,
+      llmUsed: fusion.llmUsed,
       durationMs: fusionDurationMs,
     },
     totalDurationMs: results.reduce((s, r) => s + r.durationMs, 0) + fusionDurationMs,

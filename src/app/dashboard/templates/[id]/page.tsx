@@ -36,6 +36,8 @@ export default function TemplateExecutionPage() {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
+  const [generatedContent, setGeneratedContent] = useState<string>("");
+  const [generateError, setGenerateError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   if (!template) {
@@ -52,17 +54,35 @@ export default function TemplateExecutionPage() {
     );
   }
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setGenerating(true);
-    // Simulate AI generation - in production this calls the AI provider
-    setTimeout(() => {
-      setGenerating(false);
+    setGenerateError(null);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId: id, fields: formData }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        // Fallback to sample output if AI is unavailable
+        setGeneratedContent(getSampleOutput(id));
+        setGenerateError(data.error || "AI generation failed. Showing sample output.");
+      } else {
+        setGeneratedContent(data.content);
+      }
       setGenerated(true);
-    }, 3000);
+    } catch {
+      setGeneratedContent(getSampleOutput(id));
+      setGenerateError("Network error. Showing sample output.");
+      setGenerated(true);
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(getSampleOutput(template.id));
+    navigator.clipboard.writeText(generatedContent || getSampleOutput(id));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -244,8 +264,13 @@ export default function TemplateExecutionPage() {
 
             {generated && (
               <div className="space-y-4">
+                {generateError && (
+                  <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-3 text-xs text-yellow-600 dark:text-yellow-400">
+                    {generateError}
+                  </div>
+                )}
                 <div className="rounded-lg bg-muted/30 p-4 text-sm leading-relaxed whitespace-pre-wrap max-h-[500px] overflow-y-auto">
-                  {getSampleOutput(template.id)}
+                  {generatedContent || getSampleOutput(template.id)}
                 </div>
                 <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
                   <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
