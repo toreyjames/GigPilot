@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
         { status: res.status }
       );
     }
-    revalidateTag("opportunities");
+    revalidateTag("opportunities", "max");
     return NextResponse.json(data);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
