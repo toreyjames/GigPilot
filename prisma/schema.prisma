@@ -26,7 +26,27 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
-// ─── Opportunities (found by bots) ──────────────────
+// ─── Signals (raw output from scout bots) ─────────────
+model Signal {
+  id            String   @id @default(cuid())
+  source        String   // reddit, x, google_trends, tiktok, product_hunt
+  type          String   // complaint, pain_post, breakout_search, viral_trend, launch
+  title         String
+  description   String
+  intensity     Int      // 1-100
+  rawData       Json?
+  sourceUrl     String?
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id])
+  detectedAt    DateTime @default(now())
+
+  @@index([source])
+  @@index([type])
+  @@index([detectedAt])
+  @@index([opportunityId])
+}
+
+// ─── Opportunities (found by bots / fusion) ───────────
 model Opportunity {
   id          String   @id @default(cuid())
   title       String
@@ -40,6 +60,14 @@ model Opportunity {
   source      String   // e.g. "Fiverr + Google Trends"
   isHot       Boolean  @default(false)
   isActive    Boolean  @default(true)
+
+  // Fusion scoring
+  convergenceScore Int?    // how many distinct sources
+  painIntensity     Int?    // 0-100
+  templateId        String? // link to template e.g. email-sequence
+  earningsPerHour   Float?  // estimated $/hr (potential ROI proxy)
+
+  signals      Signal[]
 
   // Raw data from the scraper
   rawData     Json?

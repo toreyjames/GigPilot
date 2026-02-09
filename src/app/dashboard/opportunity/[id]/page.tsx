@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getOpportunityById, getTemplateById } from "@/lib/data";
+import { getOpportunityById } from "@/lib/get-opportunity";
+import { getTemplateById } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,7 @@ export default async function OpportunityDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const opportunity = getOpportunityById(id);
+  const opportunity = await getOpportunityById(id);
 
   if (!opportunity) {
     notFound();
@@ -136,6 +137,11 @@ export default async function OpportunityDetailPage({
           <p className="mt-2 text-xs text-muted-foreground">
             Sourced from {opportunity.source}
           </p>
+          {opportunity.earningsPerHour != null && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Est. $/hr: <span className="font-semibold text-primary">${opportunity.earningsPerHour}</span> (from earnings, time, competition & demand)
+            </p>
+          )}
         </CardContent>
       </Card>
 

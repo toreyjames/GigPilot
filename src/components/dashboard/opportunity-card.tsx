@@ -82,6 +82,11 @@ export function OpportunityCard({
               <div>
                 <p className="text-sm font-semibold">{opportunity.avgEarnings}</p>
                 <p className="text-[10px] text-muted-foreground">avg earnings</p>
+                {opportunity.earningsPerHour != null && (
+                  <p className="text-[10px] text-primary font-medium mt-0.5">
+                    ~${opportunity.earningsPerHour}/hr est.
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">

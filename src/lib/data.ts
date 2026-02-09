@@ -20,6 +20,8 @@ export interface Opportunity {
   templateId: string;
   /** Tips for executing this opportunity */
   tips: string[];
+  /** Estimated $/hr (potential ROI proxy), when available */
+  earningsPerHour?: number;
 }
 
 export const opportunities: Opportunity[] = [
